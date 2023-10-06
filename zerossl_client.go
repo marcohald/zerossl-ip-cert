@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -85,7 +86,7 @@ func (c *Client) CreateCert(domains, csr, days, isStrictDomains string) (cert Ce
 
 // DeleteCert deletes a certificate.
 func (c *Client) DeleteCert(id string) (err error) {
-	req_ := ApiReqFactory.DeleteCertificate(c.ApiKey, id)
+	req_ := ApiReqFactory.CancelCertificate(c.ApiKey, id)
 	resp, err := http.DefaultClient.Do(req_)
 	if err != nil {
 		return err
@@ -96,8 +97,14 @@ func (c *Client) DeleteCert(id string) (err error) {
 			log.Println(err)
 		}
 	}(resp.Body)
+	// Read the response body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("Error reading response body: %s", err)
+	}
+
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("ZeroSSL API returned status code %d", resp.StatusCode)
+		return fmt.Errorf("ZeroSSL API returned status code %d, body %s", resp.StatusCode, string(body))
 	}
 	return
 }
@@ -176,6 +183,7 @@ func (c *Client) DownloadCertInline(certID, includeCrossSigned string) (cert Cer
 
 // ListCerts returns a list of certificates with optional filters.
 func (c *Client) ListCerts(status, search, limit, page string) (listCertsRsp ListCertsModel, err error) {
+	log.Printf("status: %s search: %s limit: %s page: %s", status, search, limit, page)
 	req_ := ApiReqFactory.ListCertificates(c.ApiKey, status, search, limit, page)
 	resp, err := http.DefaultClient.Do(req_)
 	if err != nil {
@@ -189,7 +197,7 @@ func (c *Client) ListCerts(status, search, limit, page string) (listCertsRsp Lis
 		}
 	}(resp.Body)
 	if resp.StatusCode >= 400 {
-		return ListCertsModel{}, fmt.Errorf("ZeroSSL API returned status code %d", resp.StatusCode)
+		return ListCertsModel{}, fmt.Errorf("ZeroSSL API returned status code %d, boday %s", resp.StatusCode, resp.Body)
 	}
 	err = json.NewDecoder(resp.Body).Decode(&listCertsRsp)
 	if err != nil {
@@ -207,16 +215,20 @@ func (c *Client) CleanUnfinished() (err error) {
 	log.Println("Cleaning unfinished certificates")
 	perPage_ := 100
 	page_ := 1
-	for certs, err := c.ListCerts("", "", strconv.Itoa(perPage_), strconv.Itoa(page_)); true; page_++ {
+	certs, err := c.ListCerts("", "", strconv.Itoa(perPage_), strconv.Itoa(page_))
+	for i := 0; page_-1 <= certs.TotalCount/perPage_; page_++ {
+		certs, err := c.ListCerts("", "", strconv.Itoa(perPage_), strconv.Itoa(page_))
+		log.Printf("i: %d certs.TotalCount/perPage_: %d", i, certs.TotalCount/perPage_)
+		log.Printf("page: %d perPage: %d ResultCount: %d TotalCount: %d", page_, perPage_, certs.ResultCount, certs.TotalCount)
 		if err != nil {
 			log.Println(err)
 			break
 		}
 
 		for _, cert := range certs.Results {
-			// Cleaning up certificates that are not finished (including draft,PendingValidation and expired).
-			if cert.Status == CertStatus.Draft || cert.Status == CertStatus.PendingValidation ||
-				cert.Status == CertStatus.Expired {
+			// Cleaning up certificates that are not finished (including draft,PendingValidation).
+			//log.Printf("Loop Name %s in %s status, id %s", cert.CommonName, cert.Status, cert.ID)
+			if cert.Status == CertStatus.Draft || cert.Status == CertStatus.PendingValidation {
 				log.Printf("Cleaning %s in %s status, id %s", cert.CommonName, cert.Status, cert.ID)
 				err = c.DeleteCert(cert.ID)
 				if err != nil {
@@ -226,7 +238,9 @@ func (c *Client) CleanUnfinished() (err error) {
 		}
 
 		// Last page.
-		if certs.ResultCount < perPage_ {
+
+		log.Printf("certs.ResultCount: %d certs.Limit: %d", certs.ResultCount, certs.Limit)
+		if certs.ResultCount < certs.Limit {
 			break
 		}
 	}

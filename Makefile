@@ -15,7 +15,8 @@ windows_386_dist = dist/zerossl-ip-cert-windows-386
 .PHONY: release linux-amd64 linux-386 linux-arm linux-arm64 macos-amd64 macos-arm64 windows-amd64 windows-386
 .DEFAULT_GOAL := release
 
-release: linux-amd64 linux-386 linux-arm linux-arm64 macos-amd64 macos-arm64 windows-amd64 windows-386
+#release: linux-amd64 linux-386 linux-arm linux-arm64 macos-amd64 macos-arm64 windows-amd64 windows-386
+release: linux-amd64 
 
 linux-amd64:
 	mkdir -p $(linux_amd64_dist)

@@ -41,6 +41,8 @@ var ApiReqFactory = struct {
 	VerificationStatus func(accessKey, id string) (req *http.Request)
 	// Request of deleting a certificate.
 	DeleteCertificate func(accessKey, id string) (req *http.Request)
+	// Request of deleting a certificate.
+	CancelCertificate func(accessKey, id string) (req *http.Request)
 	// Request of downloading a certificate.
 	DownloadCertificateInline func(accessKey, certID, includeCrossSigned string) (req *http.Request)
 }{
@@ -90,6 +92,7 @@ var ApiReqFactory = struct {
 			q_.Add("page", page)
 		}
 		url_.RawQuery = q_.Encode()
+		println(url_.RawQuery)
 		req.URL = url_
 		return
 	},
@@ -135,6 +138,15 @@ var ApiReqFactory = struct {
 	DeleteCertificate: func(accessKey, id string) (req *http.Request) {
 		req = &http.Request{Method: http.MethodDelete}
 		url_ := &url.URL{Scheme: "https", Host: ApiEndpoint, Path: "/certificates/" + id}
+		q_ := make(url.Values)
+		q_.Add("access_key", accessKey)
+		url_.RawQuery = q_.Encode()
+		req.URL = url_
+		return
+	},
+	CancelCertificate: func(accessKey, id string) (req *http.Request) {
+		req = &http.Request{Method: http.MethodPost}
+		url_ := &url.URL{Scheme: "https", Host: ApiEndpoint, Path: "/certificates/" + id+ "/cancel"}
 		q_ := make(url.Values)
 		q_.Add("access_key", accessKey)
 		url_.RawQuery = q_.Encode()
