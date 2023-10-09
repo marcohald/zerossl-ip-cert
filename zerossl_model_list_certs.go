@@ -16,6 +16,10 @@
 
 package zerosslIPCert
 
+import (
+	"encoding/json"
+)
+
 type ListCertsModel struct {
 	TotalCount  int `json:"total_count"`
 	ResultCount int `json:"result_count"`
@@ -23,4 +27,33 @@ type ListCertsModel struct {
 	//Page        string                 `json:"page"`
 	Limit   int                    `json:"limit"`
 	Results []CertificateInfoModel `json:"results,omitempty"`
+}
+
+// Custom unmarshal function for ListCertsModel
+func (l *ListCertsModel) UnmarshalJSON(data []byte) error {
+	// Print the JSON data string
+	//fmt.Println("---------------------------------------------------------------------------")
+	//fmt.Println("JSON Data String:", string(data))
+	//fmt.Println("---------------------------------------------------------------------------")
+
+	// Define a temporary struct with the same structure as ListCertsModel
+	var tmp struct {
+		TotalCount  int                    `json:"total_count"`
+		ResultCount int                    `json:"result_count"`
+		Limit       int                    `json:"limit"`
+		Results     []CertificateInfoModel `json:"results,omitempty"`
+	}
+
+	// Unmarshal the JSON data into the temporary struct
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+
+	// Copy the values from the temporary struct to the ListCertsModel
+	l.TotalCount = tmp.TotalCount
+	l.ResultCount = tmp.ResultCount
+	l.Limit = tmp.Limit
+	l.Results = tmp.Results
+
+	return nil
 }

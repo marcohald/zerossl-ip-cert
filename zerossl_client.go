@@ -17,10 +17,12 @@
 package zerosslIPCert
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
+
+	//	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -98,7 +100,7 @@ func (c *Client) DeleteCert(id string) (err error) {
 		}
 	}(resp.Body)
 	// Read the response body
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("Error reading response body: %s", err)
 	}
@@ -199,11 +201,20 @@ func (c *Client) ListCerts(status, search, limit, page string) (listCertsRsp Lis
 	if resp.StatusCode >= 400 {
 		return ListCertsModel{}, fmt.Errorf("ZeroSSL API returned status code %d, boday %s", resp.StatusCode, resp.Body)
 	}
-	err = json.NewDecoder(resp.Body).Decode(&listCertsRsp)
+	var buf bytes.Buffer
+	tee := io.TeeReader(resp.Body, &buf)
+	//body, err := io.ReadAll(&buf)
+	body, err := io.ReadAll(tee)
+	log.Println(string(body))
+	err = json.NewDecoder(&buf).Decode(&listCertsRsp)
+
 	if err != nil {
 		if &listCertsRsp == nil {
 			return
 		}
+		// Read the response body
+		//body, err := io.ReadAll(test)
+		//log.Println(string(body))
 		log.Println(err)
 		// The validation field in api response can an empty array, using the partially unmarshalled value.
 		return listCertsRsp, nil
@@ -215,6 +226,7 @@ func (c *Client) CleanUnfinished() (err error) {
 	log.Println("Cleaning unfinished certificates")
 	perPage_ := 100
 	page_ := 1
+	//certs, err := c.ListCerts("", "draft,pending_validation", strconv.Itoa(perPage_), strconv.Itoa(page_))
 	certs, err := c.ListCerts("", "", strconv.Itoa(perPage_), strconv.Itoa(page_))
 	for i := 0; page_-1 <= certs.TotalCount/perPage_; page_++ {
 		certs, err := c.ListCerts("", "", strconv.Itoa(perPage_), strconv.Itoa(page_))
@@ -236,13 +248,7 @@ func (c *Client) CleanUnfinished() (err error) {
 				}
 			}
 		}
-
-		// Last page.
-
 		log.Printf("certs.ResultCount: %d certs.Limit: %d", certs.ResultCount, certs.Limit)
-		if certs.ResultCount < certs.Limit {
-			break
-		}
 	}
 	return
 }
